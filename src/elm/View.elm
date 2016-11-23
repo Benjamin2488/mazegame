@@ -14,7 +14,6 @@ import Material.Color as Color
 import Material.Grid as Grid exposing (grid, cell, size, Device(..))
 import Material.Layout as Layout
 import Material.Options as Options
-import Material.Textfield as Textfield
 import Material.Toggles as Toggles
 import Material.Typography as Typo
 import Svg as S
@@ -84,7 +83,7 @@ view model =
         model.mdl
         [ Layout.fixedHeader
         ]
-        { header = headerSmall "Maze Deathtrap" model
+        { header = headerSmall "A Maze Game" model
         , drawer = []
         , tabs = ( [], [] )
         , main = [ viewMain model ]
@@ -203,6 +202,9 @@ viewEditing model =
     let
         currentMaze =
             Zipper.current model.mazes
+
+        isGenerating =
+            model.mazeGenerate.status == MG.InProcess
     in
         grid
             [ Color.background <| Color.accentContrast
@@ -223,20 +225,48 @@ viewEditing model =
                 [ grid
                     [ Color.background Color.accent
                     ]
-                    -- Title of the maze.
                     [ cell
                         [ size Desktop 12
                         , size Tablet 8
                         , size Phone 4
                         ]
-                        [ Textfield.render Mdl
-                            [ viewEditingContext, 1 ]
-                            model.mdl
-                            [ Textfield.label "Title"
-                            , Textfield.floatingLabel
-                            , Textfield.value currentMaze.title
-                            , Textfield.onInput SetTitle
+                        [ Options.styled p
+                            [ Typo.display1
                             ]
+                            [ text "Instructions" ]
+                        ]
+                    , cell
+                        [ size Desktop 12
+                        , size Tablet 8
+                        , size Phone 4
+                        ]
+                        [ Options.styled p
+                            [ Typo.subhead
+                            , Color.text Color.accentContrast
+                            ]
+                            [ text "1. Choose the size of maze you want with the radio buttons." ]
+                        ]
+                    , cell
+                        [ size Desktop 12
+                        , size Tablet 8
+                        , size Phone 4
+                        ]
+                        [ Options.styled p
+                            [ Typo.subhead
+                            , Color.text Color.accentContrast
+                            ]
+                            [ text "2. Click the Generate The Maze button to create your custom maze." ]
+                        ]
+                    , cell
+                        [ size Desktop 12
+                        , size Tablet 8
+                        , size Phone 4
+                        ]
+                        [ Options.styled p
+                            [ Typo.subhead
+                            , Color.text Color.accentContrast
+                            ]
+                            [ text "4. Click the Done Editing button when you are satisfied." ]
                         ]
                     , cell
                         -- The size of the maze to generate.
@@ -306,6 +336,10 @@ viewEditing model =
                             [ Button.ripple
                             , Button.colored
                             , Button.onClick <| PlayMode Viewing
+                            , if isGenerating then
+                                Button.disabled
+                              else
+                                Options.nop
                             ]
                             [ text "Done Editing" ]
                         ]
@@ -336,6 +370,38 @@ viewViewing model =
                 ]
                 [ grid []
                     [ cell
+                        -- Instructions above the maze on the left.
+                        [ size Desktop 12
+                        , size Tablet 8
+                        , size Phone 4
+                        ]
+                        [ Card.view []
+                            [ Card.text
+                                [ Color.text Color.primaryContrast
+                                , Color.background Color.primary
+                                , Options.css "font-size" "24px"
+                                , Options.css "line-height" "1.1em"
+                                ]
+                                [ text """
+                                Goal: Build your maze then use arrow keys to move blue circle to green square.
+                                """
+                                ]
+                            , Card.text
+                                [ Color.text Color.primaryContrast
+                                , Color.background Color.primary
+                                , Options.css "font-size" "16"
+                                , Options.css "line-height" "1.1em"
+                                ]
+                                [ text """
+                                Get as many points as you can. Larger mazes, quicker times,
+                                and higher difficulty levels earn more points. Replaying the
+                                same maze that you already won will earn less points the more
+                                that you do it.
+                                """
+                                ]
+                            ]
+                        ]
+                    , cell
                         -- Maze on the left.
                         [ size Desktop 12
                         , size Tablet 8
@@ -427,7 +493,44 @@ viewViewing model =
                         [ Options.styled p
                             [ Typo.display1
                             ]
-                            [ text "Mazes" ]
+                            [ text "Instructions" ]
+                        ]
+                    , cell
+                        [ size Desktop 12
+                        , size Tablet 8
+                        , size Phone 4
+                        ]
+                        [ Options.styled p
+                            [ Typo.subhead
+                            , Color.text Color.accentContrast
+                            ]
+                            [ text "1. You need to build your maze before you can use it. Click the Edit button now." ]
+                        ]
+                    , cell
+                        [ size Desktop 12
+                        , size Tablet 8
+                        , size Phone 4
+                        ]
+                        [ Options.styled p
+                            [ Typo.subhead
+                            , Color.text Color.accentContrast
+                            ]
+                            [ text "After you have built your maze, choose your difficulty level on the left then click the Play button." ]
+                        ]
+                    , cell
+                        [ size Desktop 12
+                        , size Tablet 8
+                        , size Phone 4
+                        ]
+                        [ Options.styled p
+                            [ Typo.subhead
+                            , Color.text Color.accentContrast
+                            ]
+                            [ text """
+                            Optional: You can have more than one maze. Create another maze with the New Maze button.
+                            Then edit the maze to build it. Finally play it.
+                            """
+                            ]
                         ]
                     , cell
                         -- List of mazes.
@@ -496,14 +599,7 @@ mazeMetaInfo mdl idx maze isCurrentMaze mazeDifficulty =
                 , Card.border
                 , Options.attribute <| Html.onClick <| GoToMaze idx
                 ]
-                [ Card.title []
-                    [ Card.head
-                        [ Color.background backgroundColor
-                        , Color.text textColor
-                        ]
-                        [ text ("Title: " ++ maze.title) ]
-                    ]
-                , Card.text [ Color.text textColor ]
+                [ Card.text [ Color.text textColor ]
                     [ text ("Size: " ++ gws) ]
                 , Card.text []
                     [ Button.render Mdl
@@ -736,7 +832,10 @@ drawCell col row north east south west isCenter isGoal mode blockSize =
             (toFloat blockSize) * 0.75 |> round
 
         goalOffset =
-            (blockSize - goalSize) // 2
+            (toFloat blockSize)
+                |> flip (-) (toFloat goalSize)
+                |> flip (/) 2
+                |> round
 
         {- : Generate lines but only if needed. -}
         topLine =
@@ -794,6 +893,7 @@ drawCell col row north east south west isCenter isGoal mode blockSize =
                     ]
                     []
                 ]
+
         goal =
             if isGoal then
                 [ S.rect
@@ -825,11 +925,11 @@ drawCell col row north east south west isCenter isGoal mode blockSize =
 
         cellLines =
             center
-            ++ goal
-            ++ topLine
-            ++ rightLine
-            ++ bottomLine
-            ++ leftLine
+                ++ goal
+                ++ topLine
+                ++ rightLine
+                ++ bottomLine
+                ++ leftLine
     in
         S.g []
             cellLines

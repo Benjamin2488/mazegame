@@ -687,7 +687,7 @@ linkTests =
 
 generateBinaryTreeTests : Test
 generateBinaryTreeTests =
-    describe "generateBinaryTree"
+    describe "generateBinaryTreeStep"
         [ test "Middle cell can link south"
             <| \() ->
                 let
@@ -700,7 +700,7 @@ generateBinaryTreeTests =
                             |> MG.initModel
 
                     ( model, cmd ) =
-                        MG.generateBinaryTree initialModel binaryTreeSouth
+                        MG.generateBinaryTreeStep binaryTreeSouth initialModel
 
                     isLinkSouth =
                         case
@@ -726,7 +726,7 @@ generateBinaryTreeTests =
                             |> MG.initModel
 
                     ( model, cmd ) =
-                        MG.generateBinaryTree initialModel binaryTreeEast
+                        MG.generateBinaryTreeStep binaryTreeEast initialModel
 
                     isLinkEast =
                         case
@@ -752,7 +752,7 @@ generateBinaryTreeTests =
                             |> MG.initModel
 
                     ( model, cmd ) =
-                        MG.generateBinaryTree initialModel binaryTreeEast
+                        MG.generateBinaryTreeStep binaryTreeEast initialModel
 
                     isLinkSouth =
                         case
@@ -778,7 +778,7 @@ generateBinaryTreeTests =
                             |> MG.initModel
 
                     ( model, cmd ) =
-                        MG.generateBinaryTree initialModel binaryTreeSouth
+                        MG.generateBinaryTreeStep binaryTreeSouth initialModel
 
                     isLinkEast =
                         case
@@ -804,7 +804,7 @@ generateBinaryTreeTests =
                             |> MG.initModel
 
                     ( model, cmd ) =
-                        MG.generateBinaryTree initialModel binaryTreeSouth
+                        MG.generateBinaryTreeStep binaryTreeSouth initialModel
 
                     ( isEastLink, isSouthLink ) =
                         case

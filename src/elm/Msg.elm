@@ -25,7 +25,6 @@ type Msg
     | GoToNextMaze
     | GoToPreviousMaze
     | GoToMaze Int
-    | SetTitle String
     | KeyboardExtraMsg Keyboard.Msg
     | MazeGenerate MG.Msg
     | Tick Time

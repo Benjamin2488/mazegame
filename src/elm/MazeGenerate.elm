@@ -10,7 +10,7 @@ module MazeGenerate
         , initModel
           -- The functions below are exposed for testing purposes only.
         , advanceByCell
-        , generateBinaryTree
+        , generateBinaryTreeStep
         , link
         )
 
@@ -18,6 +18,7 @@ import Matrix exposing (Matrix)
 import Process
 import Random
 import Task
+import Time
 
 
 -- LOCAL IMPORTS
@@ -38,6 +39,7 @@ type alias Model =
     , status : MazeStatus
     , mazeId : Maybe Int
     , percComplete : Int
+    , seed : Random.Seed
     }
 
 
@@ -57,6 +59,7 @@ emptyModel =
     , status = Empty
     , mazeId = Nothing
     , percComplete = 0
+    , seed = Random.initialSeed 0
     }
 
 
@@ -69,16 +72,28 @@ type alias Cell =
 
 
 type Msg
-    = BinaryTreeInit Int Int
+    = Init
+    | Error String
+    | BinaryTreeInit Int Int
     | BinaryTreeUpdate Bool
     | BinaryTreeDoRandom
     | BinaryTreeComplete
     | MazeGenerationStop
+    | NewSeed Time.Time
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        Init ->
+            emptyModel ! [ Time.now |> Task.perform (always Error "") NewSeed ]
+
+        Error e ->
+            model ! []
+
+        NewSeed time ->
+            { model | seed = (Random.initialSeed <| round time) } ! []
+
         BinaryTreeInit size mazeId ->
             let
                 -- Initialize the cells to the proper size but only if we are not
@@ -109,11 +124,20 @@ update msg model =
 
         BinaryTreeUpdate bool ->
             let
+                -- Get a number of links done without coming up for air.
+                ( batchModel, _ ) =
+                    if model.status == Stopped then
+                        ( model, Cmd.none )
+                    else
+                        generateBinaryTreeBatch model
+
+                -- This will do one more link but return a Cmd that
+                -- allows TEA to respond to other events.
                 ( newModel, newCmd ) =
                     if model.status == Stopped then
                         ( model, Cmd.none )
                     else
-                        generateBinaryTree model bool
+                        generateBinaryTreeStep bool batchModel
 
                 percComplete =
                     if model.status /= Stopped then
@@ -161,11 +185,112 @@ initModel model =
         { model | cells = matrix }
 
 
+{-| Do four links at once without entering the TEA cycle.
+This allows for faster maze generation. This needs
+to be interspersed with allowances for the TEA cycle in
+order to allow the UI to be somewhat responsive during
+maze generation.
+-}
+generateBinaryTreeBatch : Model -> ( Model, Cmd Msg )
+generateBinaryTreeBatch model =
+    let
+        ( boolList, newSeed ) =
+            Random.step (Random.list 5 Random.bool) model.seed
+
+        ( b1, b2, b3, b4, b5 ) =
+            ( Maybe.withDefault False <| List.head boolList
+            , Maybe.withDefault False <| List.head <| List.drop 1 boolList
+            , Maybe.withDefault False <| List.head <| List.drop 2 boolList
+            , Maybe.withDefault False <| List.head <| List.drop 3 boolList
+            , Maybe.withDefault False <| List.head <| List.drop 4 boolList
+            )
+
+        ( model1, isComplete1 ) =
+            generateBinaryTreeLink b1 model
+
+        ( model2, isComplete2 ) =
+            if not isComplete1 then
+                generateBinaryTreeLink b2 model1
+            else
+                ( model1, True )
+
+        ( model3, isComplete3 ) =
+            if not isComplete2 then
+                generateBinaryTreeLink b3 model2
+            else
+                ( model2, True )
+
+        ( model4, isComplete4 ) =
+            if not isComplete3 then
+                generateBinaryTreeLink b4 model3
+            else
+                ( model3, True )
+
+        ( model5, isComplete5 ) =
+            if not isComplete4 then
+                generateBinaryTreeLink b5 model4
+            else
+                ( model4, True )
+    in
+        { model5 | seed = newSeed } ! []
+
+
+generateBinaryTreeLink : Bool -> Model -> ( Model, Bool )
+generateBinaryTreeLink bool model =
+    let
+        ( col, row ) =
+            ( model.currCol, model.currRow )
+
+        cell =
+            Matrix.get col row model.cells
+
+        ( model1, isCompleted ) =
+            case cell of
+                Just c ->
+                    if row /= (model.mazeSize - 1) then
+                        -- Not the last row.
+                        if col == (model.mazeSize - 1) then
+                            -- Last column of row, only go south.
+                            link col row c South model
+                                |> advanceByCell
+                        else
+                            -- Otherwise, randomly choose a direction.
+                            link col
+                                row
+                                c
+                                (if bool then
+                                    East
+                                 else
+                                    South
+                                )
+                                model
+                                |> advanceByCell
+                    else if col == (model.mazeSize - 1) then
+                        -- Last cell of last row.
+                        ( model, True )
+                    else
+                        -- Last row but not last cell, only go east.
+                        link col row c East model
+                            |> advanceByCell
+
+                Nothing ->
+                    -- If we get here, something is wrong.
+                    ( model, True )
+
+        newModel =
+            if isCompleted then
+                { model1 | status = Complete }
+            else
+                model1
+    in
+        ( newModel, isCompleted )
+
+
 {-| Generate a single step of the maze using the Binary Tree algorithm. Returns the
     updated model as well as a Cmd that leads to the next step.
 -}
-generateBinaryTree : Model -> Bool -> ( Model, Cmd Msg )
-generateBinaryTree model bool =
+generateBinaryTreeStep : Bool -> Model -> ( Model, Cmd Msg )
+generateBinaryTreeStep bool model =
     let
         ( col, row ) =
             ( model.currCol, model.currRow )

@@ -44,7 +44,6 @@ type alias Maze =
     , mazeSize : Int
     , center : ( Int, Int )
     , goal : ( Int, Int )
-    , title : String
     , id : Int
     , percComplete : Int
     , timesWon : Int
@@ -73,7 +72,6 @@ createMaze mazeSize id =
         , mazeSize = mazeSize
         , center = ( cx, cy )
         , goal = ( 0, 0 )
-        , title = ""
         , id = id
         , percComplete = 0
         , timesWon = 0

@@ -58,7 +58,10 @@ init =
         ( keyboardModel, keyboardCmd ) =
             Keyboard.init
 
-        -- Temp.
+        ( mazeGenerateModel, mazeGenerateCmd ) =
+            MG.update MG.Init MG.emptyModel
+
+        -- TODO: get rid of temporary hard-code here.
         size =
             { width = 800, height = 800 }
     in
@@ -67,7 +70,7 @@ init =
           , mazeDifficulty = Easy
           , mazeSizePending = 20
           , timeLeft = easyTime
-          , mazeGenerate = MG.emptyModel
+          , mazeGenerate = mazeGenerateModel
           , mdl = Material.model
           , keyboardModel = keyboardModel
           , nextId = 2
@@ -79,6 +82,7 @@ init =
         , Cmd.batch
             [ Cmd.map KeyboardExtraMsg keyboardCmd
             , Task.perform Error WindowResize Window.size
+            , Cmd.map (\m -> MazeGenerate m) mazeGenerateCmd
             ]
         )
 
@@ -235,7 +239,7 @@ update msg model =
                     , nextId = model.nextId + 1
                     , mazeGenerate = mgModel
                 }
-                    ! [ Cmd.none ]
+                    ! [ Cmd.map (\m -> MazeGenerate m) mgCmd ]
 
         NewMaze ->
             -- Inserts the new maze after the current maze and makes it current.
@@ -336,14 +340,6 @@ update msg model =
 
                         Nothing ->
                             model.mazes
-            in
-                { model | mazes = newMazes } ! []
-
-        SetTitle title ->
-            let
-                newMazes =
-                    Zipper.current model.mazes
-                        |> (\m -> Zipper.update (always { m | title = title }) model.mazes)
             in
                 { model | mazes = newMazes } ! []
 
